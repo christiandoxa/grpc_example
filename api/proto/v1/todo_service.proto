@@ -1,0 +1,129 @@
+syntax = "proto3";
+
+package v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "./v1";
+
+// Task we have to do
+message ToDo {
+  // Unique integer identifier of the to do task
+  int64 id = 1;
+
+  // Title of the task
+  string title = 2;
+
+  // Detail description of the to do task
+  string description = 3;
+
+  // Date and time to remind the to do task
+  google.protobuf.Timestamp reminder = 4;
+}
+
+// Request data to create new to do task
+message CreateRequest{
+  // API versioning: it is my best practice to specify version explicitly
+  string api = 1;
+
+  // Task entity to add
+  ToDo toDo = 2;
+}
+
+// Contains data of created to do task
+message CreateResponse{
+  // API versioning: it is my best practice to specify version explicitly
+  string api = 1;
+
+  // ID of created task
+  int64 id = 2;
+}
+
+// Request data to read to do task
+message ReadRequest{
+  // API versioning: it is my best practice to specify version explicitly
+  string api = 1;
+
+  // Unique integer identifier of the to do task
+  int64 id = 2;
+}
+
+// Contains to do task data specified in by ID request
+message ReadResponse{
+  // API versioning: it is my best practice to specify version explicitly
+  string api = 1;
+
+  // Task entity read by ID
+  ToDo toDo = 2;
+}
+
+// Request data to update to do task
+message UpdateRequest{
+  // API versioning: it is my best practice to specify version explicitly
+  string api = 1;
+
+  // Task entity to update
+  ToDo toDo = 2;
+}
+
+// Contains status of update operation
+message UpdateResponse{
+  // API versioning: it is my best practice to specify version explicitly
+  string api = 1;
+
+  // Contains number of entities have been updated
+  // Equals 1 in case of successful update
+  int64 updated = 2;
+}
+
+// Request data to delete to do task
+message DeleteRequest{
+  // API versioning: it is my best practice to specify version explicitly
+  string api = 1;
+
+  // Unique integer identifier of the to do task to delete
+  int64 id = 2;
+}
+
+// Contains status of delete operation
+message DeleteResponse{
+  // API versioning: it is my best practice to specify version explicitly
+  string api = 1;
+
+  // Contains number of entities have been deleted
+  // Equals 1 in case of successful delete
+  int64 deleted = 2;
+}
+
+// Request data to read all to do task
+message ReadAllRequest{
+  // API versioning: it is my best practice to specify version explicitly
+  string api = 1;
+}
+
+// Contains list of all to do tasks
+message ReadAllResponse{
+  // API versioning: it is my best practice to specify version explicitly
+  string api = 1;
+
+  // List of all to do tasks
+  repeated ToDo toDos = 2;
+}
+
+// Service to manage list of to do tasks
+service ToDoService {
+  // Create new to do task
+  rpc Create(CreateRequest) returns (CreateResponse);
+
+  // Read to do task
+  rpc Read(ReadRequest) returns (ReadResponse);
+
+  // Update to do task
+  rpc Update(UpdateRequest) returns (UpdateResponse);
+
+  // Delete to do task
+  rpc Delete(DeleteRequest) returns (DeleteResponse);
+
+  // Read all to do tasks
+  rpc ReadAll(ReadAllRequest) returns (ReadAllResponse);
+}
