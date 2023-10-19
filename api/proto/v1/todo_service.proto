@@ -126,4 +126,7 @@ service ToDoService {
 
   // Read all to do tasks
   rpc ReadAll(ReadAllRequest) returns (ReadAllResponse);
+
+  // Stream Changed To do
+  rpc StreamChangedTodo(ReadAllRequest) returns (stream ReadAllResponse);
 }

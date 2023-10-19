@@ -19,11 +19,12 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	ToDoService_Create_FullMethodName  = "/v1.ToDoService/Create"
-	ToDoService_Read_FullMethodName    = "/v1.ToDoService/Read"
-	ToDoService_Update_FullMethodName  = "/v1.ToDoService/Update"
-	ToDoService_Delete_FullMethodName  = "/v1.ToDoService/Delete"
-	ToDoService_ReadAll_FullMethodName = "/v1.ToDoService/ReadAll"
+	ToDoService_Create_FullMethodName            = "/v1.ToDoService/Create"
+	ToDoService_Read_FullMethodName              = "/v1.ToDoService/Read"
+	ToDoService_Update_FullMethodName            = "/v1.ToDoService/Update"
+	ToDoService_Delete_FullMethodName            = "/v1.ToDoService/Delete"
+	ToDoService_ReadAll_FullMethodName           = "/v1.ToDoService/ReadAll"
+	ToDoService_StreamChangedTodo_FullMethodName = "/v1.ToDoService/StreamChangedTodo"
 )
 
 // ToDoServiceClient is the client API for ToDoService service.
@@ -40,6 +41,7 @@ type ToDoServiceClient interface {
 	Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*DeleteResponse, error)
 	// Read all to do tasks
 	ReadAll(ctx context.Context, in *ReadAllRequest, opts ...grpc.CallOption) (*ReadAllResponse, error)
+	StreamChangedTodo(ctx context.Context, in *ReadAllRequest, opts ...grpc.CallOption) (ToDoService_StreamChangedTodoClient, error)
 }
 
 type toDoServiceClient struct {
@@ -95,6 +97,38 @@ func (c *toDoServiceClient) ReadAll(ctx context.Context, in *ReadAllRequest, opt
 	return out, nil
 }
 
+func (c *toDoServiceClient) StreamChangedTodo(ctx context.Context, in *ReadAllRequest, opts ...grpc.CallOption) (ToDoService_StreamChangedTodoClient, error) {
+	stream, err := c.cc.NewStream(ctx, &ToDoService_ServiceDesc.Streams[0], ToDoService_StreamChangedTodo_FullMethodName, opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &toDoServiceStreamChangedTodoClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type ToDoService_StreamChangedTodoClient interface {
+	Recv() (*ReadAllResponse, error)
+	grpc.ClientStream
+}
+
+type toDoServiceStreamChangedTodoClient struct {
+	grpc.ClientStream
+}
+
+func (x *toDoServiceStreamChangedTodoClient) Recv() (*ReadAllResponse, error) {
+	m := new(ReadAllResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // ToDoServiceServer is the server API for ToDoService service.
 // All implementations should embed UnimplementedToDoServiceServer
 // for forward compatibility
@@ -109,6 +143,7 @@ type ToDoServiceServer interface {
 	Delete(context.Context, *DeleteRequest) (*DeleteResponse, error)
 	// Read all to do tasks
 	ReadAll(context.Context, *ReadAllRequest) (*ReadAllResponse, error)
+	StreamChangedTodo(*ReadAllRequest, ToDoService_StreamChangedTodoServer) error
 }
 
 // UnimplementedToDoServiceServer should be embedded to have forward compatible implementations.
@@ -129,6 +164,9 @@ func (UnimplementedToDoServiceServer) Delete(context.Context, *DeleteRequest) (*
 }
 func (UnimplementedToDoServiceServer) ReadAll(context.Context, *ReadAllRequest) (*ReadAllResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReadAll not implemented")
+}
+func (UnimplementedToDoServiceServer) StreamChangedTodo(*ReadAllRequest, ToDoService_StreamChangedTodoServer) error {
+	return status.Errorf(codes.Unimplemented, "method StreamChangedTodo not implemented")
 }
 
 // UnsafeToDoServiceServer may be embedded to opt out of forward compatibility for this service.
@@ -232,6 +270,27 @@ func _ToDoService_ReadAll_Handler(srv interface{}, ctx context.Context, dec func
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ToDoService_StreamChangedTodo_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(ReadAllRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(ToDoServiceServer).StreamChangedTodo(m, &toDoServiceStreamChangedTodoServer{stream})
+}
+
+type ToDoService_StreamChangedTodoServer interface {
+	Send(*ReadAllResponse) error
+	grpc.ServerStream
+}
+
+type toDoServiceStreamChangedTodoServer struct {
+	grpc.ServerStream
+}
+
+func (x *toDoServiceStreamChangedTodoServer) Send(m *ReadAllResponse) error {
+	return x.ServerStream.SendMsg(m)
+}
+
 // ToDoService_ServiceDesc is the grpc.ServiceDesc for ToDoService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -260,6 +319,12 @@ var ToDoService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ToDoService_ReadAll_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "StreamChangedTodo",
+			Handler:       _ToDoService_StreamChangedTodo_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "todo_service.proto",
 }

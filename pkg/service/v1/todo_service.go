@@ -17,12 +17,13 @@ const (
 
 // toDoServiceServer is implementation of v1.ToDoServiceServer proto interface
 type toDoServiceServer struct {
+	update         chan bool
 	todoRepository repository.ITodoRepository
 }
 
 // NewToDoServiceServer creates To Do service
 func NewToDoServiceServer(todoRepository repository.ITodoRepository) v1.ToDoServiceServer {
-	return &toDoServiceServer{todoRepository}
+	return &toDoServiceServer{make(chan bool), todoRepository}
 }
 
 // checkAPI checks if the API version requested by client is supported by server
@@ -55,9 +56,59 @@ func (s *toDoServiceServer) Create(ctx context.Context, req *v1.CreateRequest) (
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
+	// notify task update
+	s.update <- true
+
 	return &v1.CreateResponse{
 		Api: apiVersion,
 		Id:  int64(todo.ID),
+	}, nil
+}
+
+// Update todo task
+func (s *toDoServiceServer) Update(ctx context.Context, req *v1.UpdateRequest) (*v1.UpdateResponse, error) {
+	// check if the API version requested by client is supported by server
+	if err := s.checkAPI(req.Api); err != nil {
+		return nil, err
+	}
+
+	err := s.todoRepository.UpdateTodo(ctx, &repository.TodoModel{
+		ID:          int32(req.ToDo.Id),
+		Title:       req.ToDo.Title,
+		Description: req.ToDo.Description,
+		Reminder:    req.ToDo.Reminder.AsTime(),
+	})
+
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	// notify task update
+	s.update <- true
+
+	return &v1.UpdateResponse{
+		Api:     apiVersion,
+		Updated: 1,
+	}, nil
+}
+
+// Delete todo task
+func (s *toDoServiceServer) Delete(ctx context.Context, req *v1.DeleteRequest) (*v1.DeleteResponse, error) {
+	// check if the API version requested by client is supported by server
+	if err := s.checkAPI(req.Api); err != nil {
+		return nil, err
+	}
+
+	if err := s.todoRepository.Delete(ctx, fmt.Sprint(req.Id)); err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	// notify task update
+	s.update <- true
+
+	return &v1.DeleteResponse{
+		Api:     apiVersion,
+		Deleted: 1,
 	}, nil
 }
 
@@ -82,47 +133,6 @@ func (s *toDoServiceServer) Read(ctx context.Context, req *v1.ReadRequest) (*v1.
 			Description: todo.Description,
 			Reminder:    timestamppb.New(todo.Reminder),
 		},
-	}, nil
-}
-
-// Update todo task
-func (s *toDoServiceServer) Update(ctx context.Context, req *v1.UpdateRequest) (*v1.UpdateResponse, error) {
-	// check if the API version requested by client is supported by server
-	if err := s.checkAPI(req.Api); err != nil {
-		return nil, err
-	}
-
-	err := s.todoRepository.UpdateTodo(ctx, &repository.TodoModel{
-		ID:          int32(req.ToDo.Id),
-		Title:       req.ToDo.Title,
-		Description: req.ToDo.Description,
-		Reminder:    req.ToDo.Reminder.AsTime(),
-	})
-
-	if err != nil {
-		return nil, status.Error(codes.Internal, err.Error())
-	}
-
-	return &v1.UpdateResponse{
-		Api:     apiVersion,
-		Updated: 1,
-	}, nil
-}
-
-// Delete todo task
-func (s *toDoServiceServer) Delete(ctx context.Context, req *v1.DeleteRequest) (*v1.DeleteResponse, error) {
-	// check if the API version requested by client is supported by server
-	if err := s.checkAPI(req.Api); err != nil {
-		return nil, err
-	}
-
-	if err := s.todoRepository.Delete(ctx, fmt.Sprint(req.Id)); err != nil {
-		return nil, status.Error(codes.Internal, err.Error())
-	}
-
-	return &v1.DeleteResponse{
-		Api:     apiVersion,
-		Deleted: 1,
 	}, nil
 }
 
@@ -154,4 +164,40 @@ func (s *toDoServiceServer) ReadAll(ctx context.Context, req *v1.ReadAllRequest)
 		Api:   apiVersion,
 		ToDos: toDos,
 	}, nil
+}
+
+func (s *toDoServiceServer) StreamChangedTodo(req *v1.ReadAllRequest, server v1.ToDoService_StreamChangedTodoServer) error {
+	// check if the API version requested by client is supported by server
+	if err := s.checkAPI(req.Api); err != nil {
+		return err
+	}
+	for {
+		todos, err := s.todoRepository.ReadAll(server.Context())
+
+		if err != nil {
+			return status.Error(codes.Internal, err.Error())
+		}
+
+		toDos := make([]*v1.ToDo, len(*todos))
+
+		for i, model := range *todos {
+			toDos[i] = &v1.ToDo{
+				Id:          int64(model.ID),
+				Title:       model.Title,
+				Description: model.Description,
+				Reminder:    timestamppb.New(model.Reminder),
+			}
+		}
+
+		response := v1.ReadAllResponse{
+			Api:   apiVersion,
+			ToDos: toDos,
+		}
+
+		if err := server.Send(&response); err != nil {
+			return err
+		}
+
+		<-s.update
+	}
 }
