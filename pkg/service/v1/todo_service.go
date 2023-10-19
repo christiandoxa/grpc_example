@@ -17,13 +17,14 @@ const (
 
 // toDoServiceServer is implementation of v1.ToDoServiceServer proto interface
 type toDoServiceServer struct {
+	listening      bool
 	update         chan bool
 	todoRepository repository.ITodoRepository
 }
 
 // NewToDoServiceServer creates To Do service
 func NewToDoServiceServer(todoRepository repository.ITodoRepository) v1.ToDoServiceServer {
-	return &toDoServiceServer{make(chan bool), todoRepository}
+	return &toDoServiceServer{false, make(chan bool), todoRepository}
 }
 
 // checkAPI checks if the API version requested by client is supported by server
@@ -57,7 +58,9 @@ func (s *toDoServiceServer) Create(ctx context.Context, req *v1.CreateRequest) (
 	}
 
 	// notify task update
-	s.update <- true
+	if s.listening {
+		s.update <- true
+	}
 
 	return &v1.CreateResponse{
 		Api: apiVersion,
@@ -84,7 +87,9 @@ func (s *toDoServiceServer) Update(ctx context.Context, req *v1.UpdateRequest) (
 	}
 
 	// notify task update
-	s.update <- true
+	if s.listening {
+		s.update <- true
+	}
 
 	return &v1.UpdateResponse{
 		Api:     apiVersion,
@@ -104,7 +109,9 @@ func (s *toDoServiceServer) Delete(ctx context.Context, req *v1.DeleteRequest) (
 	}
 
 	// notify task update
-	s.update <- true
+	if s.listening {
+		s.update <- true
+	}
 
 	return &v1.DeleteResponse{
 		Api:     apiVersion,
@@ -171,6 +178,15 @@ func (s *toDoServiceServer) StreamChangedTodo(req *v1.ReadAllRequest, server v1.
 	if err := s.checkAPI(req.Api); err != nil {
 		return err
 	}
+
+	// set channel to listening
+	s.listening = true
+
+	// set channel to not listening when finished
+	defer func() {
+		s.listening = false
+	}()
+
 	for {
 		todos, err := s.todoRepository.ReadAll(server.Context())
 
@@ -198,6 +214,7 @@ func (s *toDoServiceServer) StreamChangedTodo(req *v1.ReadAllRequest, server v1.
 			return err
 		}
 
+		// wait until there's an update notifier
 		<-s.update
 	}
 }
