@@ -11,7 +11,7 @@ import (
 	"google.golang.org/grpc"
 )
 
-// RunServer runs gRPC service to publish ToDo service
+// RunServer runs gRPC service to publish To Do service
 func RunServer(ctx context.Context, v1API v1.ToDoServiceServer, port string) error {
 	listen, err := net.Listen("tcp", ":"+port)
 	if err != nil {
